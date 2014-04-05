@@ -1,0 +1,12 @@
+Source: ros-hydro-moveit-visual-tools
+Section: misc
+Priority: extra
+Maintainer: Dave Coleman <davetcoleman@gmail.com>
+Build-Depends: debhelper (>= 7.0.50~), ros-hydro-catkin, ros-hydro-eigen-conversions, ros-hydro-geometry-msgs, ros-hydro-moveit-ros-robot-interaction, ros-hydro-roscpp, ros-hydro-tf-conversions, ros-hydro-visualization-msgs
+Homepage: https://github.com/davetcoleman/moveit_visual_tools
+Standards-Version: 3.9.2
+
+Package: ros-hydro-moveit-visual-tools
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-hydro-geometry-msgs, ros-hydro-visualization-msgs
+Description: Helper functions for displaying and debugging MoveIt! data in Rviz via published markers
