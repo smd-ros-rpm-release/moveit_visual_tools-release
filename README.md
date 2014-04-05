@@ -1,2 +1,21 @@
+## moveit_visual_tools (hydro) - 0.1.0-0
+
+User `dave@ros_monster` released the packages in the `moveit_visual_tools` repository into the `hydro` distro by running `/usr/bin/bloom-release --rosdistro hydro --track hydro moveit_visual_tools --edit` on `Sat, 05 Apr 2014 00:47:44 -0000`
+
+The `moveit_visual_tools` package was released.
+
+Version of package(s) in repository `moveit_visual_tools`:
+- rosdistro version: `null`
+- old version: `null`
+- new version: `0.1.0-0`
+
+Versions of tools used:
+- bloom version: `0.5.2`
+- catkin_pkg version: `0.1.21`
+- rosdep version: `0.10.25`
+- rosdistro version: `0.3.4`
+- vcstools version: `0.1.33`
+
+
 moveit_visual_tools-release
 ===========================
