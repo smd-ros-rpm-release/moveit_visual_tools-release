@@ -1,9 +1,11 @@
 moveit_visual_tools
 ==========================
 
-Helper functions for displaying and debugging MoveIt! data in Rviz via published markers and MoveIt! collision objects
+Helper functions for displaying and debugging MoveIt! data in Rviz via published markers and MoveIt! collision objects. Very useful for debugging complex software
 
-<img align="right" src="https://raw.github.com/davetcoleman/moveit_visual_tools/hydro-devel/resource/demo.png" />
+By [Dave Coleman](http://dav.ee) at the Correll Robotics Lab, University of Colorado Boulder
+
+<img align="right" src="https://raw.github.com/davetcoleman/moveit_visual_tools/hydro-devel/resources/demo.png" />
 
 ### Build Status
 
@@ -13,7 +15,7 @@ Helper functions for displaying and debugging MoveIt! data in Rviz via published
 
 ### Ubuntu Debian
 
-TODO
+Available next hydro release:
 ```
 sudo apt-get install ros-hydro-moveit-visual-tools
 ```
@@ -24,6 +26,11 @@ sudo apt-get install ros-hydro-moveit-visual-tools
 git clone git@github.com:davetcoleman/moveit_visual_tools.git
 ```
 
+Now has dependency:
+```
+git clone git@github.com:davetcoleman/graph_msgs.git
+```
+
 ## Usage
 
 We'll assume you will be using these helper functions within a class.
@@ -32,18 +39,18 @@ We'll assume you will be using these helper functions within a class.
 
 Add to your includes:
 ```
-#include <moveit_visual_tools/visualization_tools.h>
+#include <moveit_visual_tools/visual_tools.h>
 ```
 
 Add to your class's member variables:
 ```
 // For visualizing things in rviz
-moveit_visual_tools::VisualizationToolsPtr visual_tools_;
+moveit_visual_tools::VisualToolsPtr visual_tools_;
 ```
 
 In your class' constructor add:
 ```
-visual_tools_.reset(new moveit_visual_tools::VisualizationTools("base_link","/moveit_visual_markers"));
+visual_tools_.reset(new moveit_visual_tools::VisualTools("base_link","/moveit_visual_markers"));
 ```
 
 Change the first parameter to the name of your robot's base link, and the second parameter to whatever name you'd like to use for the corresponding Rviz marker ROS topic.
@@ -64,6 +71,22 @@ visual_tools_->setAlpha(alpha);
 Now in your code you can easily debug your MoveIt! code using visual markers in Rviz
 
 Start rviz and create a new marker using the 'Add' button at the bottom right. Choose the marker topic to be the same as the topic you specified in the constructor.
+
+### Example Code
+
+In the following snippet we create a pose at xyz (0.1, 0.1, 0.1) and rotate the pose down 45 degrees along the Y axis. Then we publish the pose as a arrow for visualziation in Rviz. Make sure your Rviz fixed frame is the same as the one chosen in the code.
+
+    ```
+    // Create pose
+    Eigen::Affine3d pose;
+    pose = Eigen::AngleAxisd(M_PI/4, Eigen::Vector3d::UnitY()); // rotate along X axis by 45 degrees
+    pose.translation() = Eigen::Vector3d( 0.1, 0.1, 0.1 ); // translate x,y,z
+
+    // Publish arrow vector of pose
+    ROS_INFO_STREAM_NAMED("test","Publishing Arrow");
+    visual_tools_->publishArrow(pose, moveit_visual_tools::RED, moveit_visual_tools::LARGE);
+    ```
+
 
 ### Publishing Functions
 
@@ -126,4 +149,4 @@ This will cause all new markers to overwrite older ones.
 
 ## Contribute
 
-Feel free to send PRs for new helper functions, fixes, etc. - I'll happily discuss and merge them. I do not, howver, want to send much time helping people use this because I am a busy grad student. Use at your own risk.
+Feel free to send PRs for new helper functions, fixes, etc. - I'll happily discuss and merge them. I do not, however, want to send much time helping people use this because I am a busy grad student. Use at your own risk.
