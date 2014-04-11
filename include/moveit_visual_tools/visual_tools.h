@@ -32,11 +32,12 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-// Author: Dave Coleman
-// Desc:   Simple tools for showing parts of a robot in Rviz, such as the gripper or arm
+// \author  Dave Coleman
+// \desc    Helper functions for displaying and debugging MoveIt! data in Rviz via published markers 
+//          and MoveIt! collision objects. Very useful for debugging complex software
 
-#ifndef MOVEIT_VISUAL_TOOLS__VISUALIZATION_TOOLS_
-#define MOVEIT_VISUAL_TOOLS__VISUALIZATION_TOOLS_
+#ifndef MOVEIT_VISUAL_TOOLS__VISUAL_TOOLS_H_
+#define MOVEIT_VISUAL_TOOLS__VISUAL_TOOLS_H_
 
 // Rviz
 #include <visualization_msgs/Marker.h>
@@ -61,10 +62,13 @@
 
 // Messages
 #include <std_msgs/ColorRGBA.h>
+#include <graph_msgs/GeometryGraph.h>
+
 
 namespace moveit_visual_tools
 {
 
+// Default constants
 static const std::string ROBOT_DESCRIPTION="robot_description";
 static const std::string COLLISION_TOPIC = "/collision_object";
 static const std::string ATTACHED_COLLISION_TOPIC = "/attached_collision_object";
@@ -73,7 +77,7 @@ static const std::string RVIZ_MARKER_TOPIC = "/end_effector_marker";
 enum rviz_colors { RED, GREEN, BLUE, GREY, WHITE, ORANGE, BLACK, YELLOW };
 enum rviz_scales { XXSMALL, XSMALL, SMALL, REGULAR, LARGE, XLARGE };
 
-class VisualizationTools
+class VisualTools
 {
 private:
 
@@ -85,6 +89,7 @@ private:
   ros::Publisher pub_collision_obj_; // for MoveIt collision objects
   ros::Publisher pub_attach_collision_obj_; // for MoveIt attached objects
   ros::Publisher pub_display_path_; // for MoveIt trajectories
+  ros::Publisher pub_planning_scene_diff_; // for adding and removing collision objects
 
   // Pointer to a Planning Scene Monitor
   planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor_;
@@ -126,24 +131,44 @@ private:
   int rectangle_id_;
   int line_id_;
 
+  // Track all collision objects we've added
+  std::vector<std::string> collision_objects_;
+
 public:
 
   /**
    * \brief Constructor with planning scene
    */
-  VisualizationTools(std::string base_link, 
+  VisualTools(std::string base_link,
     planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor,
     std::string marker_topic = RVIZ_MARKER_TOPIC);
 
   /**
    * \brief Constructor w/o planning scene passed in
    */
-  VisualizationTools(std::string base_link = "base", std::string marker_topic = RVIZ_MARKER_TOPIC);
+  VisualTools(std::string base_link = "base", std::string marker_topic = RVIZ_MARKER_TOPIC);
 
   /**
    * \brief Deconstructor
    */
-  ~VisualizationTools();
+  ~VisualTools();
+
+  /**
+   * \brief Return if we are in verbose mode
+   */
+  bool isMuted()
+  {
+    return muted_;
+  }
+
+  /**
+   * \brief Set this class to not actually publish anything to Rviz.
+   * \param muted true if verbose
+   */
+  void setMuted(bool muted)
+  {
+    muted_ = muted;
+  }
 
   /**
    * \brief Allows an offset between base link and floor where objects are built. Default is zero
@@ -158,6 +183,90 @@ public:
   void setGraspPoseToEEFPose(geometry_msgs::Pose grasp_pose_to_eef_pose);
 
   /**
+   * \brief Set the name of the end effector
+   */
+  void setEEGroupName(const std::string& ee_group_name)
+  {
+    ee_group_name_ = ee_group_name;
+  }
+
+  /**
+   * \brief Provide the name of the planning group moveit will use
+   */
+  void setPlanningGroupName(const std::string& planning_group_name)
+  {
+    planning_group_name_ = planning_group_name;
+  }
+
+  /**
+   * \brief Change the transparency of all markers published
+   * \param alpha - value 0 - 1 where 0 is invisible
+   */
+  void setAlpha(double alpha)
+  {
+    alpha_ = alpha;
+  }
+
+  /**
+   * \brief Set the lifetime of markers published to rviz
+   * \param lifetime seconds of how long to show markers. 0 for inifinity
+   */
+  void setLifetime(double lifetime);
+
+  /**
+   * \brief Get the RGB value of standard colors
+   * \param color - an enum pre-defined name of a color
+   * \return the RGB message equivalent
+   */
+  std_msgs::ColorRGBA getColor(const rviz_colors &color);
+
+  /**
+   * \brief Get the rviz marker scale of standard sizes
+   * \param scale - an enum pre-defined name of a size
+   * \param arrow_scale - they do not have an even scaling, compensate
+   * \param marker_scale - amount to scale the scale for accounting for different types of markers
+   * \return vector of 3 scales
+   */
+  geometry_msgs::Vector3 getScale(const rviz_scales &scale, bool arrow_scale = false, double marker_scale = 1.0);
+
+  /**
+   * \brief Get the end effector parent link as loaded from the SRDF
+   * \return string of name of end effector parent link
+   */
+  const std::string& getEEParentLink();
+
+  /**
+   * @brief Get the planning scene monitor that this class is using
+   * @return a ptr to a planning scene
+   */
+  planning_scene_monitor::PlanningSceneMonitorPtr getPlanningSceneMonitor();
+
+  /**
+   * \brief Create a vector that points from point a to point b
+   * \param point a - x,y,z in space of a point
+   * \param point b - x,y,z in space of a point
+   * \return vector from a to b
+   */
+  Eigen::Affine3d getVectorBetweenPoints(Eigen::Vector3d a, Eigen::Vector3d b);
+
+  /**
+   * \brief Find the center between to points
+   * \param point a - x,y,z in space of a point
+   * \param point b - x,y,z in space of a point
+   * \return center point
+   */
+  Eigen::Vector3d getCenterPoint(Eigen::Vector3d a, Eigen::Vector3d b);
+
+  /**
+   * \brief Get the base frame
+   * \return name of base frame
+   */
+  const std::string getBaseLink()
+  {
+    return base_link_;
+  }
+
+  /**
    * \brief Pre-load rviz markers for better efficiency
    */
   void loadRvizMarkers();
@@ -168,6 +277,10 @@ public:
    */
   bool loadPlanningSceneMonitor();
 
+  /**
+   * \brief Caches the meshes and geometry of a robot. NOTE: perhaps not maintained...
+   * \return true if successful in loading
+   */
   bool loadRobotMarkers();
 
   /**
@@ -204,7 +317,7 @@ public:
    * \brief Publish an marker of an arrow to rviz
    * \param pose - the location to publish the marker with respect to the base frame
    * \param color - an enum pre-defined name of a color
-   * \param scale - an enum pre-defined name of a size   
+   * \param scale - an enum pre-defined name of a size
    * \return true on success
    */
   bool publishArrow(const Eigen::Affine3d &pose, const rviz_colors color = BLUE, const rviz_scales scale = REGULAR);
@@ -227,97 +340,32 @@ public:
    * \param scale - an enum pre-defined name of a size
    * \return true on success
    */
-  bool publishLine(const geometry_msgs::Point &point1, const geometry_msgs::Point &point2, 
+  bool publishLine(const geometry_msgs::Point &point1, const geometry_msgs::Point &point2,
     const rviz_colors color = BLUE, const rviz_scales scale = REGULAR);
 
   /**
    * \brief Publish an marker of a block to Rviz
    * \param pose - the location to publish the marker with respect to the base frame
+   * \param color - an enum pre-defined name of a color
+   * \param size - height=width=depth=size
    * \return true on success
    */
-  bool publishBlock(const geometry_msgs::Pose &pose, const double &block_size, const bool isRed);
+  bool publishBlock(const geometry_msgs::Pose &pose, const rviz_colors color = BLUE, const double &block_size = 0.1);
 
   /**
    * \brief Publish an marker of a text to Rviz
    * \param pose - the location to publish the marker with respect to the base frame
+   * \param text - what to display
+   * \param color - an enum pre-defined name of a color
    * \return true on success
    */
   bool publishText(const geometry_msgs::Pose &pose, const std::string &text,
     const rviz_colors &color = WHITE);
 
   /**
-   * \brief Set the name of the end effector
+   * \brief Remove all collision objects that this class has added to the MoveIt! planning scene
    */
-  void setEEGroupName(const std::string& ee_group_name)
-  {
-    ee_group_name_ = ee_group_name;
-  }
-
-  /**
-   * \brief Provide the name of the planning group moveit will use
-   */
-  void setPlanningGroupName(const std::string& planning_group_name)    
-  {
-    planning_group_name_ = planning_group_name;
-  }
-
-  /**
-   * \brief Set this class to not actually publish anything to Rviz.
-   * \param muted true if verbose
-   */
-  void setMuted(bool muted)
-  {
-    muted_ = muted;
-  }
-
-  /**
-   * \brief Change the transparency of all markers published
-   * \param alpha - value 0 - 1 where 0 is invisible
-   */
-  void setAlpha(double alpha)
-  {
-    alpha_ = alpha;
-  }
-
-  /**
-   * \brief Return if we are in verbose mode
-   */
-  bool isMuted()
-  {
-    return muted_;
-  }
-
-  /**
-   * \brief Set the lifetime of markers published to rviz
-   * \param lifetime seconds of how long to show markers. 0 for inifinity
-   */
-  void setLifetime(double lifetime)
-  {
-    marker_lifetime_ = ros::Duration(lifetime);
-
-    // Update cached markers
-    arrow_marker_.lifetime = marker_lifetime_;
-    rectangle_marker_.lifetime = marker_lifetime_;
-    line_marker_.lifetime = marker_lifetime_;
-    sphere_marker_.lifetime = marker_lifetime_;
-    block_marker_.lifetime = marker_lifetime_;
-    text_marker_.lifetime = marker_lifetime_;    
-  }
-
-  /**
-   * @brief Get the planning scene monitor that this class is using
-   * @param planning_scene_monitor
-   * @return true if successful
-   */
-  planning_scene_monitor::PlanningSceneMonitorPtr getPlanningSceneMonitor()
-  {
-    if( !planning_scene_monitor_ )
-    {
-      loadPlanningSceneMonitor();
-    }
-
-    return planning_scene_monitor_;
-  }
+  void removeAllCollisionObjects();
 
   /**
    * \brief Remove a collision object from the planning scene
@@ -325,17 +373,85 @@ public:
    */
   void cleanupCO(std::string name);
 
+  /**
+   * \brief Remove an active collision object from the planning scene
+   * \param Name of object
+   */
   void cleanupACO(const std::string& name);
 
+  /**
+   * \brief Attach a collision object from the planning scene
+   * \param Name of object
+   */
   void attachCO(const std::string& name);
 
-  void publishCollisionBlock(geometry_msgs::Pose block_pose, std::string block_name,
-    double block_size);
+  /**
+   * \brief Create a MoveIt Collision block at the given pose
+   * \param pose - location of center of block
+   * \param name - semantic name of MoveIt collision object
+   * \param size - height=width=depth=size
+   **/
+  void publishCollisionBlock(geometry_msgs::Pose block_pose, std::string block_name, double block_size);
 
+  /**
+   * \brief Create a MoveIt Collision cylinder between two points
+   * \param point a - x,y,z in space of a point
+   * \param point b - x,y,z in space of a point
+   * \param name - semantic name of MoveIt collision object
+   * \param radius - size of cylinder
+   */
+  void publishCollisionCylinder(geometry_msgs::Point a, geometry_msgs::Point b, std::string object_name, double radius);
+  void publishCollisionCylinder(Eigen::Vector3d a, Eigen::Vector3d b, std::string object_name, double radius);
+
+  /**
+   * \brief Create a MoveIt Collision cylinder with a center point pose
+   * \param pose - vector pointing along axis of cylinder
+   * \param name - semantic name of MoveIt collision object
+   * \param radius - size of cylinder
+   * \param height - size of cylinder
+   */
+  void publishCollisionCylinder(Eigen::Affine3d object_pose, std::string object_name, double radius, double height);
+  void publishCollisionCylinder(geometry_msgs::Pose object_pose, std::string object_name, double radius, double height);
+
+  /**
+   * \brief Publish a connected birectional tree that is a graph
+   * \param graph of nodes and edges
+   * \param name of collision object
+   */
+  void publishCollisionTree(const graph_msgs::GeometryGraph &geo_graph, const std::string &object_name, double radius);
+
+  /**
+   * \brief Publish a typical room wall
+   * \param x
+   * \param y
+   * \param angle
+   * \param width
+   * \param name
+   */
   void publishCollisionWall(double x, double y, double angle, double width, const std::string name);
 
+  /**
+   * \brief Publish a typical room table
+   * \param x
+   * \param y
+   * \param angle
+   * \param width
+   * \param height
+   * \param depth
+   * \param name
+   */
   void publishCollisionTable(double x, double y, double angle, double width, double height,
     double depth, const std::string name);
+
+  /**
+   * \brief Move a joint group in MoveIt for visualization
+   *  make sure you have already set the planning group name
+   *  this assumes the trajectory_pt position is the size of the number of joints in the planning group
+   * \param trajectory_pts - a single joint configuration
+   * \param group_name - the MoveIt planning group the trajectory applies to 
+   * \return true if no errors
+   */
+  bool publishTrajectoryPoint(const trajectory_msgs::JointTrajectoryPoint& trajectory_pt, const std::string &group_name);
 
   /**
    * \brief Animate trajectory in rviz
@@ -346,50 +462,21 @@ public:
   bool publishTrajectoryPath(const moveit_msgs::RobotTrajectory& trajectory_msg, bool waitTrajectory);
 
   /**
-   * \brief Get the RGB value of standard colors
-   * \param color - an enum pre-defined name of a color
-   * \return the RGB message equivalent
+   * \brief Converts an Eigen pose to a geometry_msg pose
+   * \param pose
    */
-  std_msgs::ColorRGBA getColor(const rviz_colors &color);
+  geometry_msgs::Pose convertPose(const Eigen::Affine3d &pose);
 
   /**
-   * \brief Get the rviz marker scale of standard sizes
-   * \param scale - an enum pre-defined name of a size
-   * \param arrow_scale - they do not have an even scaling, compensate
-   * \param marker_scale - amount to scale the scale for accounting for different types of markers
-   * \return vector of 3 scales
+   * \brief Converts a geometry_msg point to an Eigen point
+   * \param point
    */
-  geometry_msgs::Vector3 getScale(const rviz_scales &scale, bool arrow_scale = false, double marker_scale = 1.0);
-
-  /**
-   * \brief Get the end effector parent link as loaded from the SRDF
-   * \return string of name of end effector parent link
-   */
-  const std::string& getEEParentLink()
-  {
-    // Make sure we already loaded the EE markers
-    loadEEMarker();
-
-    return ee_parent_link_;
-  }
-
-
-  bool isMarkerPubLoaded()
-  {
-    if( !pub_rviz_marker_ )
-    {
-    ROS_ERROR_STREAM_NAMED("temp","Pub Rviz Marker is not loaded. this is a HACK! - todo");
-    pub_rviz_marker_ = nh_.advertise<visualization_msgs::Marker>(marker_topic_, 10);
-    ROS_DEBUG_STREAM_NAMED("viz_tools","Visualizing rviz markers on topic " << marker_topic_);      
-    }
-    
-    return pub_rviz_marker_;
-  }
+  Eigen::Vector3d convertPoint(const geometry_msgs::Point &point);
 
 }; // class
 
-typedef boost::shared_ptr<VisualizationTools> VisualizationToolsPtr;
-typedef boost::shared_ptr<const VisualizationTools> VisualizationToolsConstPtr;
+typedef boost::shared_ptr<VisualTools> VisualToolsPtr;
+typedef boost::shared_ptr<const VisualTools> VisualToolsConstPtr;
 
 } // namespace
 
