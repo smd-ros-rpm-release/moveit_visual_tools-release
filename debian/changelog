@@ -1,7 +1,0 @@
-ros-hydro-moveit-visual-tools (0.1.0-0quantal) quantal; urgency=high
-
-  * Split moveit_visual_tools from its original usage within block_grasp_generator package
-
- -- Dave Coleman <davetcoleman@gmail.com>  Fri, 04 Apr 2014 06:00:00 -0000
-
-
