@@ -32,9 +32,19 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-// \author  Dave Coleman
-// \desc    Helper functions for displaying and debugging MoveIt! data in Rviz via published markers 
-//          and MoveIt! collision objects. Very useful for debugging complex software
+/* \author  Dave Coleman
+ * \desc    Helper functions for displaying and debugging MoveIt! data in Rviz via published markers
+ *          and MoveIt! collision objects. Very useful for debugging complex software
+ *
+ * Standard: we do not want to load any features until they are actually needed since this library
+ *           contains so many components
+ *
+ * Standard: all publish() ROS topics should be followed by a ros::spinOnce();
+ *
+ * Standard: all publishers should only be loaded as needed
+ * 
+ * Note: our planning scene copy does not load kinematic solvers to save on loading time
+ */
 
 #ifndef MOVEIT_VISUAL_TOOLS__VISUAL_TOOLS_H_
 #define MOVEIT_VISUAL_TOOLS__VISUAL_TOOLS_H_
@@ -45,17 +55,8 @@
 
 // MoveIt
 #include <moveit/planning_scene_monitor/planning_scene_monitor.h>
-#include <moveit/robot_interaction/robot_interaction.h>
-#include <shape_tools/solid_primitive_dims.h>
-
-// MoveIt Messages
-#include <moveit_msgs/DisplayTrajectory.h>
-#include <moveit_msgs/CollisionObject.h>
-
-// ROS
-#include <tf_conversions/tf_eigen.h>
-#include <eigen_conversions/eigen_msg.h>
-#include <geometry_msgs/PoseArray.h>
+#include <moveit_msgs/Grasp.h>
+#include <moveit_msgs/DisplayRobotState.h>
 
 // Boost
 #include <boost/shared_ptr.hpp>
@@ -63,16 +64,20 @@
 // Messages
 #include <std_msgs/ColorRGBA.h>
 #include <graph_msgs/GeometryGraph.h>
-
+#include <geometry_msgs/PoseArray.h>
+#include <trajectory_msgs/JointTrajectory.h>
 
 namespace moveit_visual_tools
 {
 
 // Default constants
-static const std::string ROBOT_DESCRIPTION="robot_description";
+static const std::string ROBOT_DESCRIPTION = "robot_description";
 static const std::string COLLISION_TOPIC = "/collision_object";
 static const std::string ATTACHED_COLLISION_TOPIC = "/attached_collision_object";
 static const std::string RVIZ_MARKER_TOPIC = "/end_effector_marker";
+static const std::string PLANNING_SCENE_TOPIC = "/move_group/monitored_planning_scene";
+static const std::string DISPLAY_PLANNED_PATH_TOPIC = "/move_group/display_planned_path";
+static const std::string DISPLAY_ROBOT_STATE_TOPIC = "/move_group/robot_state";
 
 enum rviz_colors { RED, GREEN, BLUE, GREY, WHITE, ORANGE, BLACK, YELLOW };
 enum rviz_scales { XXSMALL, XSMALL, SMALL, REGULAR, LARGE, XLARGE };
@@ -90,16 +95,15 @@ private:
   ros::Publisher pub_attach_collision_obj_; // for MoveIt attached objects
   ros::Publisher pub_display_path_; // for MoveIt trajectories
   ros::Publisher pub_planning_scene_diff_; // for adding and removing collision objects
+  ros::Publisher pub_robot_state_; // publish a RobotState message
 
   // Pointer to a Planning Scene Monitor
   planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor_;
+  robot_model_loader::RobotModelLoaderPtr rm_loader_; // so that we can specify our own options
 
   // Strings
   std::string marker_topic_; // topic to publish to rviz
-  std::string ee_group_name_; // end effector group name
-  std::string planning_group_name_; // planning group we are working with
   std::string base_link_; // name of base link of robot
-  std::string ee_parent_link_; // parent link of end effector, loaded from MoveIt!
 
   double floor_to_base_height_; // allows an offset between base link and floor where objects are built
 
@@ -112,6 +116,7 @@ private:
   geometry_msgs::Pose grasp_pose_to_eef_pose_; // Convert generic grasp pose to this end effector's frame of reference
   std::vector<geometry_msgs::Pose> marker_poses_;
 
+  // Library settings
   bool muted_; // Whether to actually publish to rviz or not
   double alpha_; // opacity of all markers
 
@@ -119,39 +124,60 @@ private:
   visualization_msgs::Marker arrow_marker_;
   visualization_msgs::Marker sphere_marker_;
   visualization_msgs::Marker block_marker_;
+  visualization_msgs::Marker cylinder_marker_;
   visualization_msgs::Marker text_marker_;
   visualization_msgs::Marker rectangle_marker_;
   visualization_msgs::Marker line_marker_;
+
+  // MoveIt cached markers
+  moveit_msgs::DisplayRobotState display_robot_msg_;
+
+  // MoveIt cached objects
+  robot_state::RobotStatePtr shared_robot_state_; // Note: call loadSharedRobotState() before using this
 
   // Marker id counters
   int arrow_id_;
   int sphere_id_;
   int block_id_;
+  int cylinder_id_;
   int text_id_;
   int rectangle_id_;
   int line_id_;
 
-  // Track all collision objects we've added
-  std::vector<std::string> collision_objects_;
+
+private:
+  /**
+   * \brief Shared function for initilization by constructors
+   */
+  void initialize();
 
 public:
 
   /**
-   * \brief Constructor with planning scene
+   * \brief Constructor
+   * \param base_link - common base for all visualization markers, usually "base_link"
+   * \param marker_topic - rostopic to publish markers to - your Rviz display should match
+   * \param planning_scene_monitor - optionally pass in a pre-loaded planning scene monitor to avoid having to re-load
+   *        the URDF, kinematic solvers, etc
    */
-  VisualTools(std::string base_link,
-    planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor,
-    std::string marker_topic = RVIZ_MARKER_TOPIC);
-
-  /**
-   * \brief Constructor w/o planning scene passed in
-   */
-  VisualTools(std::string base_link = "base", std::string marker_topic = RVIZ_MARKER_TOPIC);
+  VisualTools(const std::string& base_link,
+    const std::string& marker_topic = RVIZ_MARKER_TOPIC,
+    planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor = planning_scene_monitor::PlanningSceneMonitorPtr());
 
   /**
    * \brief Deconstructor
    */
-  ~VisualTools();
+  ~VisualTools() {};
+
+  /**
+   * \brief Load publishers as needed
+   */
+  void loadMarkerPub();
+  void loadCollisionPub();
+  void loadAttachedPub();
+  void loadPlanningPub();
+  void loadTrajectoryPub();
+  void loadRobotPub();
 
   /**
    * \brief Return if we are in verbose mode
@@ -181,22 +207,6 @@ public:
    * \param pose - the transform
    */
   void setGraspPoseToEEFPose(geometry_msgs::Pose grasp_pose_to_eef_pose);
-
-  /**
-   * \brief Set the name of the end effector
-   */
-  void setEEGroupName(const std::string& ee_group_name)
-  {
-    ee_group_name_ = ee_group_name;
-  }
-
-  /**
-   * \brief Provide the name of the planning group moveit will use
-   */
-  void setPlanningGroupName(const std::string& planning_group_name)
-  {
-    planning_group_name_ = planning_group_name;
-  }
 
   /**
    * \brief Change the transparency of all markers published
@@ -230,18 +240,6 @@ public:
   geometry_msgs::Vector3 getScale(const rviz_scales &scale, bool arrow_scale = false, double marker_scale = 1.0);
 
   /**
-   * \brief Get the end effector parent link as loaded from the SRDF
-   * \return string of name of end effector parent link
-   */
-  const std::string& getEEParentLink();
-
-  /**
-   * @brief Get the planning scene monitor that this class is using
-   * @return a ptr to a planning scene
-   */
-  planning_scene_monitor::PlanningSceneMonitorPtr getPlanningSceneMonitor();
-
-  /**
    * \brief Create a vector that points from point a to point b
    * \param point a - x,y,z in space of a point
    * \param point b - x,y,z in space of a point
@@ -268,14 +266,21 @@ public:
 
   /**
    * \brief Pre-load rviz markers for better efficiency
+   * \return converted pose   * \return true on sucess
    */
-  void loadRvizMarkers();
+  bool loadRvizMarkers();
 
   /**
    * \brief Load a planning scene monitor if one was not passed into the constructor
    * \return true if successful in loading
    */
   bool loadPlanningSceneMonitor();
+
+  /**
+   * \brief Load robot state only as needed
+   * \return true if successful in loading
+   */
+  bool loadSharedRobotState();
 
   /**
    * \brief Caches the meshes and geometry of a robot. NOTE: perhaps not maintained...
@@ -285,9 +290,11 @@ public:
 
   /**
    * \brief Call this once at begining to load the robot marker
+   * \param
+   * \param
    * \return true if it is successful
    */
-  bool loadEEMarker();
+  bool loadEEMarker(const std::string& ee_group_name, const std::string& planning_group);
 
   /**
    * \brief Reset the id's of all published markers so that they overwrite themselves in the future
@@ -353,6 +360,25 @@ public:
   bool publishBlock(const geometry_msgs::Pose &pose, const rviz_colors color = BLUE, const double &block_size = 0.1);
 
   /**
+   * \brief Publish an marker of a cylinder to Rviz
+   * \param pose - the location to publish the marker with respect to the base frame
+   * \param color - an enum pre-defined name of a color
+   * \param height - geometry of cylinder
+   * \param radius - geometry of cylinder
+   * \return true on success
+   */
+  bool publishCylinder(const geometry_msgs::Pose &pose, const rviz_colors color = BLUE, double height = 0.1, double radius = 0.1);
+
+  /**
+   * \brief Publish a graph
+   * \param graph of nodes and edges
+   * \param color - an enum pre-defined name of a color
+   * \param radius - width of cylinders
+   * \return true on success
+   */
+  bool publishGraph(const graph_msgs::GeometryGraph &graph, const rviz_colors color, double radius);
+
+  /**
    * \brief Publish an marker of a text to Rviz
    * \param pose - the location to publish the marker with respect to the base frame
    * \param text - what to display
@@ -363,35 +389,77 @@ public:
     const rviz_colors &color = WHITE);
 
   /**
-   * \brief Remove all collision objects that this class has added to the MoveIt! planning scene
+   * \brief Show grasps generated from moveit_simple_grasps or other MoveIt Grasp message sources
+   * \param possible_grasps - a set of grasp positions to visualize
+   * \param ee_parent_link - end effector's attachment link
    */
-  void removeAllCollisionObjects();
+  bool publishGrasps(const std::vector<moveit_msgs::Grasp>& possible_grasps,
+    const std::string &ee_parent_link);
+
+  /**
+   * \brief Display an animated vector of grasps including its approach movement in Rviz
+   * \param possible_grasps - a set of grasp positions to visualize
+   * \param ee_parent_link - end effector's attachment link
+   * \param animate_speed - how fast the gripper approach is animated, optional
+   */
+  bool publishAnimatedGrasps(const std::vector<moveit_msgs::Grasp>& possible_grasps,
+    const std::string &ee_parent_link, double animate_speed = 0.01);
+
+  /**
+   * \brief Animate a single grasp in its movement direction
+   * \param grasp
+   * \param ee_parent_link - end effector's attachment link
+   * \param animate_speed - how fast the gripper approach is animated
+   * \return true on sucess
+   */
+  bool publishAnimatedGrasp(const moveit_msgs::Grasp &grasp, const std::string &ee_parent_link, double animate_speed);
+
+  /**
+   * \brief Display an vector of inverse kinematic solutions for the IK service in Rviz
+   *        Note: this is published to the 'Planned Path' section of the 'MotionPlanning' display in Rviz
+   *        Note: make sure you call setPlanningGroupName first
+   * \param ik_solutions - a set of corresponding arm positions to achieve each grasp
+   * \param display_time - amount of time to sleep between sending trajectories, optional
+   */
+  bool publishIKSolutions(const std::vector<trajectory_msgs::JointTrajectoryPoint> &ik_solutions, 
+    const std::string& planning_group, double display_time = 0.4);
+
+  /**
+   * \brief Remove all collision objects that this class has added to the MoveIt! planning scene
+   * \return true on sucess
+   */
+  bool removeAllCollisionObjects();
 
   /**
    * \brief Remove a collision object from the planning scene
    * \param Name of object
+   * \return true on sucess
    */
-  void cleanupCO(std::string name);
+  bool cleanupCO(std::string name);
 
   /**
    * \brief Remove an active collision object from the planning scene
    * \param Name of object
+   * \return true on sucess
    */
-  void cleanupACO(const std::string& name);
+  bool cleanupACO(const std::string& name);
 
   /**
    * \brief Attach a collision object from the planning scene
    * \param Name of object
+   * \param 
+   * \return true on sucess
    */
-  void attachCO(const std::string& name);
+  bool attachCO(const std::string& name, const std::string& ee_parent_link);
 
   /**
    * \brief Create a MoveIt Collision block at the given pose
    * \param pose - location of center of block
    * \param name - semantic name of MoveIt collision object
    * \param size - height=width=depth=size
+   * \return true on sucess
    **/
-  void publishCollisionBlock(geometry_msgs::Pose block_pose, std::string block_name, double block_size);
+  bool publishCollisionBlock(geometry_msgs::Pose block_pose, std::string block_name, double block_size);
 
   /**
    * \brief Create a MoveIt Collision cylinder between two points
@@ -399,9 +467,10 @@ public:
    * \param point b - x,y,z in space of a point
    * \param name - semantic name of MoveIt collision object
    * \param radius - size of cylinder
+   * \return true on sucess
    */
-  void publishCollisionCylinder(geometry_msgs::Point a, geometry_msgs::Point b, std::string object_name, double radius);
-  void publishCollisionCylinder(Eigen::Vector3d a, Eigen::Vector3d b, std::string object_name, double radius);
+  bool publishCollisionCylinder(geometry_msgs::Point a, geometry_msgs::Point b, std::string object_name, double radius);
+  bool publishCollisionCylinder(Eigen::Vector3d a, Eigen::Vector3d b, std::string object_name, double radius);
 
   /**
    * \brief Create a MoveIt Collision cylinder with a center point pose
@@ -409,16 +478,18 @@ public:
    * \param name - semantic name of MoveIt collision object
    * \param radius - size of cylinder
    * \param height - size of cylinder
+   * \return true on sucess
    */
-  void publishCollisionCylinder(Eigen::Affine3d object_pose, std::string object_name, double radius, double height);
-  void publishCollisionCylinder(geometry_msgs::Pose object_pose, std::string object_name, double radius, double height);
+  bool publishCollisionCylinder(Eigen::Affine3d object_pose, std::string object_name, double radius, double height);
+  bool publishCollisionCylinder(geometry_msgs::Pose object_pose, std::string object_name, double radius, double height);
 
   /**
-   * \brief Publish a connected birectional tree that is a graph
+   * \brief Publish a connected birectional graph
    * \param graph of nodes and edges
    * \param name of collision object
+   * \return true on sucess
    */
-  void publishCollisionTree(const graph_msgs::GeometryGraph &geo_graph, const std::string &object_name, double radius);
+  bool publishCollisionGraph(const graph_msgs::GeometryGraph &graph, const std::string &object_name, double radius);
 
   /**
    * \brief Publish a typical room wall
@@ -427,8 +498,9 @@ public:
    * \param angle
    * \param width
    * \param name
+   * \return true on sucess
    */
-  void publishCollisionWall(double x, double y, double angle, double width, const std::string name);
+  bool publishCollisionWall(double x, double y, double angle, double width, const std::string name);
 
   /**
    * \brief Publish a typical room table
@@ -439,39 +511,97 @@ public:
    * \param height
    * \param depth
    * \param name
+   * \return true on sucess
    */
-  void publishCollisionTable(double x, double y, double angle, double width, double height,
+  bool publishCollisionTable(double x, double y, double angle, double width, double height,
     double depth, const std::string name);
 
   /**
    * \brief Move a joint group in MoveIt for visualization
    *  make sure you have already set the planning group name
    *  this assumes the trajectory_pt position is the size of the number of joints in the planning group
+   *  This will be displayed in the Planned Path section of the MoveIt Rviz plugin
+   *
    * \param trajectory_pts - a single joint configuration
-   * \param group_name - the MoveIt planning group the trajectory applies to 
-   * \return true if no errors
+   * \param group_name - the MoveIt planning group the trajectory applies to
+   * \param display_time - amount of time for the trajectory to "execute"
+   * \return true on success
    */
-  bool publishTrajectoryPoint(const trajectory_msgs::JointTrajectoryPoint& trajectory_pt, const std::string &group_name);
+  bool publishTrajectoryPoint(const trajectory_msgs::JointTrajectoryPoint& trajectory_pt, const std::string &group_name,
+    double display_time = 0.1);
 
   /**
    * \brief Animate trajectory in rviz
    * \param trajectory_msg the actual plan
-   * \param waitTrajectory whether we need to wait for the animation to complete
-   * \return true if no errors
+   * \param blocking whether we need to wait for the animation to complete
+   * \return true on success
    */
-  bool publishTrajectoryPath(const moveit_msgs::RobotTrajectory& trajectory_msg, bool waitTrajectory);
+  bool publishTrajectoryPath(const moveit_msgs::RobotTrajectory& trajectory_msg, bool blocking = false);
+
+  /**
+   * \brief Publish a complete robot state to Rviz
+   *        To use, add a RobotState marker to Rviz and subscribe to the DISPLAY_ROBOT_STATE_TOPIC, above
+   * \param robot_state
+   */
+  bool publishRobotState(const robot_state::RobotState &robot_state);
+
+  /**
+   * \brief Publish a MoveIt robot state to a topic that the Rviz "RobotState" display can show
+   * \param robot_state
+   * \return true on success
+   */
+  bool publishRobotState(const trajectory_msgs::JointTrajectoryPoint& trajectory_pt, const std::string &group_name);
+
+  /**
+   * \brief Run a simple test of all visual_tool's features
+   * \return true on success
+   */
+  bool publishTest();
 
   /**
    * \brief Converts an Eigen pose to a geometry_msg pose
    * \param pose
+   * \return converted pose
    */
   geometry_msgs::Pose convertPose(const Eigen::Affine3d &pose);
 
   /**
    * \brief Converts a geometry_msg point to an Eigen point
    * \param point
+   * \return converted pose
    */
   Eigen::Vector3d convertPoint(const geometry_msgs::Point &point);
+
+  /**
+   * \brief Create a random pose
+   * \param Pose to fill in
+   */
+  void generateRandomPose(geometry_msgs::Pose& pose);
+
+  /**
+   * \brief Get random double between min and max
+   */
+  double dRand(double dMin, double dMax);
+
+  /**
+   * \brief Debug variables to console
+   */
+  void print();
+
+private:
+
+  /**
+   * \brief Get the end effector parent link as loaded from the SRDF
+   * \return string of name of end effector parent link
+   */
+  const std::string& getEEParentLink();
+
+  /**
+   * @brief Get the planning scene monitor that this class is using
+   * @return a ptr to a planning scene
+   */
+  planning_scene_monitor::PlanningSceneMonitorPtr getPlanningSceneMonitor();
+
 
 }; // class
 
