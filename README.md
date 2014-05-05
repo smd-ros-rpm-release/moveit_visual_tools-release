@@ -1,7 +1,14 @@
-moveit_visual_tools
+MoveIt! Visual Tools
 ==========================
 
-Helper functions for displaying and debugging MoveIt! data in Rviz via published markers and MoveIt! collision objects. Very useful for debugging complex software
+Helper functions for displaying and debugging MoveIt! data in Rviz via published markers, trajectories, and MoveIt! collision objects. It is sometimes hard to understand everything that is going on internally with MoveIt!, but using these quick convenience functions allows one to easily visualize their code. 
+
+This package includes:
+
+ - Basic geometric markers for Rviz
+ - MoveIt! collision object tools
+ - Trajectory visualization tools
+ - Robot state tools
 
 By [Dave Coleman](http://dav.ee) at the Correll Robotics Lab, University of Colorado Boulder
 
@@ -15,7 +22,6 @@ By [Dave Coleman](http://dav.ee) at the Correll Robotics Lab, University of Colo
 
 ### Ubuntu Debian
 
-Available next hydro release:
 ```
 sudo apt-get install ros-hydro-moveit-visual-tools
 ```
@@ -24,11 +30,6 @@ sudo apt-get install ros-hydro-moveit-visual-tools
 
 ```
 git clone git@github.com:davetcoleman/moveit_visual_tools.git
-```
-
-Now has dependency:
-```
-git clone git@github.com:davetcoleman/graph_msgs.git
 ```
 
 ## Usage
@@ -76,7 +77,6 @@ Start rviz and create a new marker using the 'Add' button at the bottom right. C
 
 In the following snippet we create a pose at xyz (0.1, 0.1, 0.1) and rotate the pose down 45 degrees along the Y axis. Then we publish the pose as a arrow for visualziation in Rviz. Make sure your Rviz fixed frame is the same as the one chosen in the code.
 
-    ```
     // Create pose
     Eigen::Affine3d pose;
     pose = Eigen::AngleAxisd(M_PI/4, Eigen::Vector3d::UnitY()); // rotate along X axis by 45 degrees
@@ -85,20 +85,20 @@ In the following snippet we create a pose at xyz (0.1, 0.1, 0.1) and rotate the 
     // Publish arrow vector of pose
     ROS_INFO_STREAM_NAMED("test","Publishing Arrow");
     visual_tools_->publishArrow(pose, moveit_visual_tools::RED, moveit_visual_tools::LARGE);
-    ```
 
 
-### Publishing Functions
+### Basic Publishing Functions
 
-See ``moveit_visual_tools.h`` for more details and documentation on the following functions:
+See ``visual_tools.h`` for more details and documentation on the following functions:
 
- - publishSphere
  - publishEEMarkers
+ - publishSphere
  - publishArrow
  - publishRectangle
  - publishLine
  - publishBlock
  - publishText
+ - publishTest
 
 ### Collision Object Functions
 
@@ -108,14 +108,30 @@ Helpers for adding and removing objects from the MoveIt! planning scene. CO stan
  - cleanupACO
  - attachCO
  - publishCollisionBlock
- - publishCollisionWall
+ - publishCollisionCylinder
+ - publishCollisionTree
  - publishCollisionTable
+ - publishCollisionWall
 
 ### Animate Trajectories
 
-Note: this might not currently be working
+Higher level robot ans trajectory functions
 
  - publishTrajectoryPath
+ - publishTrajectoryPoint
+ - publishRobotState
+ - publishAnimatedGrasps
+ - publishIKSolutions
+
+### Helper Functions
+
+Convenience functions
+ 
+ - convertPose
+ - generateRandomPose
+ - dRand
+ - getCenterPoint
+ - getVectorBetweenPoints
 
 ### Available Colors
 
@@ -146,6 +162,24 @@ All markers will persist for the duration set by ``setLifetime``, defaulting to 
 resetMarkerCounts();
 ```
 This will cause all new markers to overwrite older ones.
+
+### Stacktrace Tool
+
+An additional tool, that perhaps should not live in this repo, allows one to see the backtrace of their code without using gdb or compiling in debug mode. To use:
+
+```
+#include <moveit_visual_tools/stacktrace.h>
+```
+
+Then:
+```
+void someFunction()
+{
+  print_stacktrace();
+}
+```
+
+Easy! Only works with g++, however. See [this page](http://panthema.net/2008/0901-stacktrace-demangled/) for more information.
 
 ## Contribute
 
