@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package>
   <name>moveit_visual_tools</name>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
   <description>Helper functions for displaying and debugging MoveIt! data in Rviz via published markers</description>
 
   <maintainer email="davetcoleman@gmail.com">Dave Coleman</maintainer>
@@ -27,6 +27,7 @@
   <build_depend>std_msgs</build_depend>
   <build_depend>moveit_msgs</build_depend>
   <build_depend>trajectory_msgs</build_depend>
+  <build_depend>cmake_modules</build_depend>
 
   <run_depend>moveit_ros_robot_interaction</run_depend>
   <run_depend>moveit_core</run_depend>
