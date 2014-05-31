@@ -1,3 +1,22 @@
+## moveit_visual_tools (indigo) - 1.0.1-0
+
+The packages in the `moveit_visual_tools` repository were released into the `indigo` distro by running `/usr/bin/bloom-release moveit_visual_tools -t indigo -r indigo --edit` on `Sat, 31 May 2014 05:07:12 -0000`
+
+The `moveit_visual_tools` package was released.
+
+Version of package(s) in repository `moveit_visual_tools`:
+- rosdistro version: `null`
+- old version: `null`
+- new version: `1.0.1-0`
+
+Versions of tools used:
+- bloom version: `0.5.9`
+- catkin_pkg version: `0.2.2`
+- rosdep version: `0.10.27`
+- rosdistro version: `0.3.5`
+- vcstools version: `0.1.35`
+
+
 ## moveit_visual_tools (hydro) - 1.0.1-0
 
 The packages in the `moveit_visual_tools` repository were released into the `hydro` distro by running `/usr/bin/bloom-release moveit_visual_tools -t hydro -r hydro` on `Fri, 30 May 2014 11:53:25 -0000`
