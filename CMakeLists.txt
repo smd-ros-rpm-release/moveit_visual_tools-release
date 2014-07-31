@@ -36,7 +36,7 @@ catkin_package(
 )
 
 # Enable gdb to show line numbers
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -W -Wall -Wno-unused-parameter -fno-strict-aliasing")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -g -W -Wall -Wno-unused-parameter -fno-strict-aliasing")
 #set(CMAKE_BUILD_TYPE Debug)
 
 ## Build 
@@ -50,6 +50,9 @@ include_directories(
 add_library(${PROJECT_NAME}
   src/visual_tools.cpp
 )
+
+add_dependencies(${PROJECT_NAME} graph_msgs_generate_messages_cpp)
+
 target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES} ${Boost_LIBRARIES}
 )
