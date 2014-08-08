@@ -37,7 +37,7 @@
  *          and MoveIt! collision objects. Very useful for debugging complex software
  *
  *          See README.md for developers notes.
- * 
+ *
  */
 
 #ifndef MOVEIT_VISUAL_TOOLS__VISUAL_TOOLS_H_
@@ -76,7 +76,7 @@ static const std::string DISPLAY_PLANNED_PATH_TOPIC = "/move_group/display_plann
 static const std::string DISPLAY_ROBOT_STATE_TOPIC = "/move_group/robot_state";
 
 enum rviz_colors { RED, GREEN, BLUE, GREY, WHITE, ORANGE, BLACK, YELLOW, TRANSLUCENT, RAND };
-enum rviz_scales { XXSMALL, XSMALL, SMALL, REGULAR, LARGE, XLARGE };
+enum rviz_scales { XXSMALL, XSMALL, SMALL, REGULAR, LARGE, XLARGE, XXLARGE };
 
 class VisualTools
 {
@@ -101,6 +101,7 @@ protected:
   std::string marker_topic_; // topic to publish to rviz
   std::string base_link_; // name of base link of robot
 
+  // TODO rename this
   double floor_to_base_height_; // allows an offset between base link and floor where objects are built
 
   // Duration to have Rviz markers persist, 0 for infinity
@@ -115,6 +116,7 @@ protected:
   // Library settings
   bool muted_; // Whether to actually publish to rviz or not
   double alpha_; // opacity of all markers
+  double global_scale_; // allow all markers to be increased by a constanct factor
 
   // Cached Rviz markers
   visualization_msgs::Marker arrow_marker_;
@@ -151,8 +153,8 @@ public:
    *        the URDF, kinematic solvers, etc
    */
   VisualTools(const std::string& base_link,
-    const std::string& marker_topic,
-    planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor);
+              const std::string& marker_topic,
+              planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor);
 
   /**
    * \brief Constructor
@@ -308,6 +310,22 @@ public:
   }
 
   /**
+   * \brief Getter for the global scale used for changing size of all markers
+   */
+  double getGlobalScale()
+  {
+    return global_scale_;
+  }
+
+  /**
+   * \brief Setter for the global scale used for changing size of all markers
+   */
+  void setGlobalScale(double global_scale)
+  {
+    global_scale_ = global_scale;
+  }
+
+  /**
    * \brief Publish an end effector to rviz
    * \param pose - the location to publish the marker with respect to the base frame
    * \return true on success
@@ -354,7 +372,7 @@ public:
    * \return true on success
    */
   bool publishLine(const geometry_msgs::Point &point1, const geometry_msgs::Point &point2,
-    const rviz_colors color = BLUE, const rviz_scales scale = REGULAR);
+                   const rviz_colors color = BLUE, const rviz_scales scale = REGULAR);
 
   /**
    * \brief Publish a marker of a series of connected lines to rviz
@@ -364,7 +382,7 @@ public:
    * \param ns - namespace of marker
    * \return true on success
    */
-  bool publishPath(const std::vector<geometry_msgs::Point> &path, const rviz_colors color = RED, const rviz_scales scale = REGULAR, 
+  bool publishPath(const std::vector<geometry_msgs::Point> &path, const rviz_colors color = RED, const rviz_scales scale = REGULAR,
                    const std::string& ns = "Path");
 
   /**
@@ -375,7 +393,7 @@ public:
    * \param ns - namespace of marker
    * \return true on success
    */
-  bool publishPolygon(const geometry_msgs::Polygon &polygon, const rviz_colors color = RED, const rviz_scales scale = REGULAR, 
+  bool publishPolygon(const geometry_msgs::Polygon &polygon, const rviz_colors color = RED, const rviz_scales scale = REGULAR,
                       const std::string& ns = "Polygon");
 
   /**
@@ -415,7 +433,7 @@ public:
    * \param ns - namespace of marker
    * \return true on success
    */
-  bool publishSpheres(const std::vector<geometry_msgs::Point> &points, const rviz_colors color = BLUE, const rviz_scales scale = REGULAR, 
+  bool publishSpheres(const std::vector<geometry_msgs::Point> &points, const rviz_colors color = BLUE, const rviz_scales scale = REGULAR,
                       const std::string& ns = "Spheres");
 
   /**
@@ -442,7 +460,7 @@ public:
    * \param ee_parent_link - end effector's attachment link
    */
   bool publishGrasps(const std::vector<moveit_msgs::Grasp>& possible_grasps,
-    const std::string &ee_parent_link);
+                     const std::string &ee_parent_link);
 
   /**
    * \brief Display an animated vector of grasps including its approach movement in Rviz
@@ -451,7 +469,7 @@ public:
    * \param animate_speed - how fast the gripper approach is animated, optional
    */
   bool publishAnimatedGrasps(const std::vector<moveit_msgs::Grasp>& possible_grasps,
-    const std::string &ee_parent_link, double animate_speed = 0.01);
+                             const std::string &ee_parent_link, double animate_speed = 0.01);
 
   /**
    * \brief Animate a single grasp in its movement direction
@@ -468,14 +486,23 @@ public:
    * \param ik_solutions - a set of corresponding arm positions to achieve each grasp
    * \param display_time - amount of time to sleep between sending trajectories, optional
    */
-  bool publishIKSolutions(const std::vector<trajectory_msgs::JointTrajectoryPoint> &ik_solutions, 
-    const std::string& planning_group, double display_time = 0.4);
+  bool publishIKSolutions(const std::vector<trajectory_msgs::JointTrajectoryPoint> &ik_solutions,
+                          const std::string& planning_group, double display_time = 0.4);
 
   /**
    * \brief Remove all collision objects that this class has added to the MoveIt! planning scene
+   *        Communicates to a remote move_group node through a ROS message
    * \return true on sucess
    */
   bool removeAllCollisionObjects();
+
+  /**
+   * \brief Remove all collision objects that this class has added to the MoveIt! planning scene
+   *        Communicates directly to a planning scene monitor e.g. if this is the move_group node
+   * \param  the scene to directly clear the collision objects from
+   * \return true on sucess
+   */
+  bool removeAllCollisionObjects(planning_scene_monitor::PlanningSceneMonitorPtr& planning_scene_monitor);
 
   /**
    * \brief Remove a collision object from the planning scene
@@ -494,7 +521,7 @@ public:
   /**
    * \brief Attach a collision object from the planning scene
    * \param Name of object
-   * \param 
+   * \param
    * \return true on sucess
    */
   bool attachCO(const std::string& name, const std::string& ee_parent_link);
@@ -539,11 +566,11 @@ public:
   bool publishCollisionGraph(const graph_msgs::GeometryGraph &graph, const std::string &object_name, double radius);
 
   /**
-   * \brief Helper for publishCollisionWall 
+   * \brief Helper for publishCollisionWall
    */
-  void getCollisionWallMsg(double x, double y, double angle, double width, const std::string name, 
+  void getCollisionWallMsg(double x, double y, double angle, double width, const std::string name,
                            moveit_msgs::CollisionObject &collision_obj);
-  
+
   /**
    * \brief Publish a typical room wall
    * \param x
@@ -567,7 +594,15 @@ public:
    * \return true on sucess
    */
   bool publishCollisionTable(double x, double y, double angle, double width, double height,
-    double depth, const std::string name);
+                             double depth, const std::string name);
+
+  /**
+   * \brief Load a planning scene to a planning_scene_monitor from file
+   * \param path - path to planning scene, e.g. as exported from Rviz Plugin
+   * \param planning scene monitor that is already setup
+   * \return true on success
+   */
+  bool publishCollisionSceneFromFile(const std::string &path, planning_scene_monitor::PlanningSceneMonitorPtr& planning_scene_monitor);
 
   /**
    * \brief Move a joint group in MoveIt for visualization
@@ -581,7 +616,7 @@ public:
    * \return true on success
    */
   bool publishTrajectoryPoint(const trajectory_msgs::JointTrajectoryPoint& trajectory_pt, const std::string &group_name,
-    double display_time = 0.1);
+                              double display_time = 0.1);
 
   /**
    * \brief Animate trajectory in rviz
@@ -606,6 +641,12 @@ public:
    * \return true on success
    */
   bool publishRobotState(const trajectory_msgs::JointTrajectoryPoint& trajectory_pt, const std::string &group_name);
+
+  /**
+   * \brief Fake removing a Robot State display in Rviz by simply moving it very far away
+   * \return true on success
+   */
+  bool hideRobot();
 
   /**
    * \brief Run a simple test of all visual_tool's features
