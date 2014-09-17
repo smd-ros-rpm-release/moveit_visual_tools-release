@@ -75,8 +75,27 @@ static const std::string PLANNING_SCENE_TOPIC = "/move_group/monitored_planning_
 static const std::string DISPLAY_PLANNED_PATH_TOPIC = "/move_group/display_planned_path";
 static const std::string DISPLAY_ROBOT_STATE_TOPIC = "/move_group/robot_state";
 
-enum rviz_colors { RED, GREEN, BLUE, GREY, WHITE, ORANGE, BLACK, YELLOW, TRANSLUCENT, RAND };
-enum rviz_scales { XXSMALL, XSMALL, SMALL, REGULAR, LARGE, XLARGE, XXLARGE };
+// Note: when adding new colors to rviz_colors, also add them to getRandColor() function
+enum rviz_colors { RED, 
+                   GREEN, 
+                   BLUE, 
+                   GREY, 
+                   WHITE, 
+                   ORANGE, 
+                   BLACK, 
+                   YELLOW, 
+                   PURPLE, 
+                   TRANSLUCENT, 
+                   TRANSLUCENT2,
+                   RAND };
+
+enum rviz_scales { XXSMALL,
+                   XSMALL,
+                   SMALL,
+                   REGULAR,
+                   LARGE, xLARGE, xxLARGE, xxxLARGE,
+                   XLARGE,
+                   XXLARGE };
 
 class VisualTools
 {
@@ -195,6 +214,13 @@ public:
   bool loadPlanningSceneMonitor();
 
   /**
+   * \brief Skip a ROS message call by sending directly to planning scene monitor
+   * \param collision object message
+   * \return true on success
+   */
+  bool processCollisionObjectMsg(moveit_msgs::CollisionObject msg);
+
+  /**
    * \brief Load robot state only as needed
    * \return true if successful in loading
    */
@@ -263,10 +289,25 @@ public:
   }
 
   /**
+   * \brief Allow a pre-configured planning scene monitor to be set for publishing collision objects, etc
+   * \param a pointer to a load planning scen
+   */
+  void setPlanningSceneMonitor(planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor)
+  {
+    planning_scene_monitor_ = planning_scene_monitor;
+  }
+
+  /**
    * \brief Set the lifetime of markers published to rviz
    * \param lifetime seconds of how long to show markers. 0 for inifinity
    */
   void setLifetime(double lifetime);
+
+  /**
+   * \brief Get a random color from the list of hardcoded enum color types
+   * \return Random color from rviz_colors
+   */
+  const rviz_colors getRandColor();
 
   /**
    * \brief Get the RGB value of standard colors
@@ -308,9 +349,20 @@ public:
   {
     return base_frame_;
   }
-  MOVEIT_DEPRECATED const std::string getBaseLink()    
+  MOVEIT_DEPRECATED const std::string getBaseLink()
   {
     return base_frame_;
+  }
+
+  /**
+   * \brief Change the global base frame
+   *        Note: this might reset all your current markers
+   * \param name of frame
+   */
+  void setBaseFrame(const std::string& base_frame)
+  {
+    base_frame_ = base_frame;
+    loadRvizMarkers();
   }
 
   /**
@@ -347,6 +399,8 @@ public:
   bool publishSphere(const Eigen::Vector3d &point, const rviz_colors color = BLUE, const rviz_scales scale = REGULAR, const std::string& ns = "Sphere");
   bool publishSphere(const geometry_msgs::Point &point, const rviz_colors color = BLUE, const rviz_scales scale = REGULAR, const std::string& ns = "Sphere");
   bool publishSphere(const geometry_msgs::Pose &pose, const rviz_colors color = BLUE, const rviz_scales scale = REGULAR, const std::string& ns = "Sphere");
+  bool publishSphere(const geometry_msgs::Pose &pose, const rviz_colors color, const double scale, const std::string& ns = "Sphere");
+  bool publishSphere(const geometry_msgs::Pose &pose, const rviz_colors color, const geometry_msgs::Vector3 scale, const std::string& ns = "Sphere");
 
   /**
    * \brief Publish a marker of an arrow to rviz
@@ -451,6 +505,9 @@ public:
   bool publishText(const geometry_msgs::Pose &pose, const std::string &text,
                    const rviz_colors &color = WHITE, const rviz_scales scale = REGULAR);
 
+  bool publishText(const geometry_msgs::Pose &pose, const std::string &text,
+                   const rviz_colors &color, const geometry_msgs::Vector3 scale, bool static_id = true);
+
   /**
    * \brief Publish a visualization_msgs Marker of a custom type. Allows reuse of the ros publisher
    * \param marker - a pre-made marker ready to be published
@@ -498,7 +555,11 @@ public:
    *        Communicates to a remote move_group node through a ROS message
    * \return true on sucess
    */
-  bool removeAllCollisionObjects();
+  MOVEIT_DEPRECATED bool removeAllCollisionObjects()
+  {
+    publishRemoveAllCollisionObjects();
+  }
+  bool publishRemoveAllCollisionObjects();
 
   /**
    * \brief Remove all collision objects that this class has added to the MoveIt! planning scene
@@ -506,7 +567,7 @@ public:
    * \param  the scene to directly clear the collision objects from
    * \return true on sucess
    */
-  bool removeAllCollisionObjects(planning_scene_monitor::PlanningSceneMonitorPtr& planning_scene_monitor);
+  bool removeAllCollisionObjectsPS();
 
   /**
    * \brief Remove a collision object from the planning scene
@@ -529,6 +590,14 @@ public:
    * \return true on sucess
    */
   bool attachCO(const std::string& name, const std::string& ee_parent_link);
+
+  /**
+   * \brief Make the floor a collision object
+   * \param z location of floor
+   * \param name of floor
+   * \return true on success
+   */
+  bool publishCollisionFloor(double z, std::string plane_name);
 
   /**
    * \brief Create a MoveIt Collision block at the given pose
@@ -606,7 +675,7 @@ public:
    * \param planning scene monitor that is already setup
    * \return true on success
    */
-  bool publishCollisionSceneFromFile(const std::string &path, planning_scene_monitor::PlanningSceneMonitorPtr& planning_scene_monitor);
+  bool loadCollisionSceneFromFile(const std::string &path);
 
   /**
    * \brief Move a joint group in MoveIt for visualization
@@ -683,6 +752,14 @@ public:
   static Eigen::Affine3d convertPoint32ToPose(const geometry_msgs::Point32 &point);
 
   /**
+   * \brief 
+   * \param input - description
+   * \param input - description
+   * \return 
+   */
+  static geometry_msgs::Pose convertPointToPose(const geometry_msgs::Point &point);
+
+  /**
    * \brief Convert an Eigen pose to a geometry_msg point
    *        Note: NOT memory efficient
    * \param pose
@@ -733,12 +810,6 @@ public:
   void print();
 
 private:
-
-  /**
-   * \brief Get the end effector parent link as loaded from the SRDF
-   * \return string of name of end effector parent link
-   */
-  const std::string& getEEParentLink();
 
   /**
    * @brief Get the planning scene monitor that this class is using
