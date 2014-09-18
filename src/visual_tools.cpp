@@ -47,6 +47,7 @@
 
 // Conversions
 #include <tf_conversions/tf_eigen.h>
+
 #include <eigen_conversions/eigen_msg.h>
 
 #include <shape_tools/solid_primitive_dims.h>
@@ -68,7 +69,8 @@ VisualTools::VisualTools(const std::string& base_frame,
 VisualTools::VisualTools(const std::string& base_frame,
                          const std::string& marker_topic,
                          robot_model::RobotModelConstPtr robot_model)
-  :  robot_model_(robot_model),
+  :  nh_("~"),
+     robot_model_(robot_model),
      marker_topic_(marker_topic),
      base_frame_(base_frame)
 {
@@ -82,7 +84,6 @@ void VisualTools::initialize()
   muted_ = false;
   alpha_ = 0.8;
   global_scale_ = 1.0;
-
   // Cache the reusable markers
   loadRvizMarkers();
 }
@@ -254,6 +255,12 @@ bool VisualTools::loadRvizMarkers()
 
 bool VisualTools::loadPlanningSceneMonitor()
 {
+  // Check if we already have one
+  if (planning_scene_monitor_)
+  {
+    ROS_WARN_STREAM_NAMED("visual_tools","Will not load a new planning scene monitor when one has already been set for Visual Tools");
+    return false;
+  }
   ROS_DEBUG_STREAM_NAMED("visual_tools","Loading planning scene monitor");
 
   // Create planning scene monitor
@@ -278,7 +285,7 @@ bool VisualTools::loadPlanningSceneMonitor()
   planning_scene_monitor_.reset(new planning_scene_monitor::PlanningSceneMonitor(ROBOT_DESCRIPTION));
 
   ros::spinOnce();
-  ros::Duration(0.5).sleep();
+  ros::Duration(0.1).sleep();
   ros::spinOnce();
 
   if (planning_scene_monitor_->getPlanningScene())
@@ -294,6 +301,20 @@ bool VisualTools::loadPlanningSceneMonitor()
     ROS_ERROR_STREAM_NAMED("visual_tools","Planning scene not configured");
     return false;
   }
+
+  return true;
+}
+
+bool VisualTools::processCollisionObjectMsg(moveit_msgs::CollisionObject msg)
+{
+  // Apply removal command directly to avoid a ROS msg call
+  {
+    planning_scene_monitor::LockedPlanningSceneRW scene(getPlanningSceneMonitor());
+    scene->processCollisionObjectMsg(msg);
+  }
+
+  // Trigger an update
+  getPlanningSceneMonitor()->triggerSceneUpdateEvent(planning_scene_monitor::PlanningSceneMonitor::UPDATE_SCENE);
 
   return true;
 }
@@ -419,7 +440,7 @@ void VisualTools::loadMarkerPub()
   ROS_DEBUG_STREAM_NAMED("visual_tools","Publishing Rviz markers on topic " << pub_rviz_marker_.getTopic());
 
   ros::spinOnce();
-  ros::Duration(0.5).sleep();
+  ros::Duration(0.2).sleep();
   ros::spinOnce();
 }
 
@@ -433,7 +454,7 @@ void VisualTools::loadCollisionPub()
   ROS_DEBUG_STREAM_NAMED("visual_tools","Publishing collision objects on topic " << pub_collision_obj_.getTopic());
 
   ros::spinOnce();
-  ros::Duration(0.5).sleep();
+  ros::Duration(0.2).sleep();
   ros::spinOnce();
 }
 
@@ -447,7 +468,7 @@ void VisualTools::loadAttachedPub()
   ROS_DEBUG_STREAM_NAMED("visual_tools","Publishing attached collision objects on topic " << pub_attach_collision_obj_.getTopic());
 
   ros::spinOnce();
-  ros::Duration(0.5).sleep();
+  ros::Duration(0.2).sleep();
   ros::spinOnce();
 }
 
@@ -461,7 +482,7 @@ void VisualTools::loadPlanningPub()
   ROS_DEBUG_STREAM_NAMED("visual_tools","Publishing planning scene on topic " << pub_planning_scene_diff_.getTopic());
 
   ros::spinOnce();
-  ros::Duration(0.5).sleep();
+  ros::Duration(0.2).sleep();
   ros::spinOnce();
 }
 
@@ -475,7 +496,7 @@ void VisualTools::loadTrajectoryPub()
   ROS_DEBUG_STREAM_NAMED("visual_tools","Publishing MoveIt trajectory on topic " << pub_display_path_.getTopic());
 
   ros::spinOnce();
-  ros::Duration(0.5).sleep();
+  ros::Duration(0.2).sleep();
   ros::spinOnce();
 }
 
@@ -489,7 +510,7 @@ void VisualTools::loadRobotStatePub(const std::string &marker_topic)
   ROS_DEBUG_STREAM_NAMED("visual_tools","Publishing MoveIt robot state on topic " << pub_robot_state_.getTopic());
 
   ros::spinOnce();
-  ros::Duration(0.5).sleep();
+  ros::Duration(0.2).sleep();
   ros::spinOnce();
 }
 
@@ -515,6 +536,23 @@ void VisualTools::setLifetime(double lifetime)
   block_marker_.lifetime = marker_lifetime_;
   cylinder_marker_.lifetime = marker_lifetime_;
   text_marker_.lifetime = marker_lifetime_;
+}
+
+const rviz_colors VisualTools::getRandColor()
+{
+  std::vector<rviz_colors> all_colors;
+  
+  all_colors.push_back(RED);
+  all_colors.push_back(GREEN);
+  all_colors.push_back(BLUE);
+  all_colors.push_back(GREY);
+  all_colors.push_back(WHITE);
+  all_colors.push_back(ORANGE);
+  all_colors.push_back(BLACK);
+  all_colors.push_back(YELLOW);
+  all_colors.push_back(PURPLE);
+  
+  return all_colors[ rand() % all_colors.size() ];
 }
 
 std_msgs::ColorRGBA VisualTools::getColor(const rviz_colors &color)
@@ -554,6 +592,12 @@ std_msgs::ColorRGBA VisualTools::getColor(const rviz_colors &color)
       result.b = 0.8;
       result.a = 0.3;
       break;
+    case TRANSLUCENT2:
+      result.r = 0.1;
+      result.g = 0.1;
+      result.b = 0.1;
+      result.a = 0.1;
+      break;
     case BLACK:
       result.r = 0.0;
       result.g = 0.0;
@@ -563,6 +607,11 @@ std_msgs::ColorRGBA VisualTools::getColor(const rviz_colors &color)
       result.r = 1.0;
       result.g = 1.0;
       result.b = 0.0;
+      break;
+    case PURPLE:
+      result.r = 0.597;
+      result.g = 0.0;
+      result.b = 0.597;
       break;
     case RAND:
       // Make sure color is not *too* light
@@ -603,6 +652,15 @@ geometry_msgs::Vector3 VisualTools::getScale(const rviz_scales &scale, bool arro
       break;
     case LARGE:
       val = 0.1;
+      break;
+    case xLARGE:
+      val = 0.2;
+      break;
+    case xxLARGE:
+      val = 0.3;
+      break;
+    case xxxLARGE:
+      val = 0.4;
       break;
     case XLARGE:
       val = 0.5;
@@ -819,6 +877,19 @@ bool VisualTools::publishSphere(const geometry_msgs::Point &point, const rviz_co
 
 bool VisualTools::publishSphere(const geometry_msgs::Pose &pose, const rviz_colors color, const rviz_scales scale, const std::string& ns)
 {
+  return publishSphere(pose, color, getScale(scale, false, 0.1), ns);
+}
+
+bool VisualTools::publishSphere(const geometry_msgs::Pose &pose, const rviz_colors color, double scale, const std::string& ns)
+{
+  geometry_msgs::Vector3 scale_msg;
+  scale_msg.x = scale;
+  scale_msg.y = scale;
+  scale_msg.z = scale;
+  return publishSphere(pose, color, scale_msg, ns);
+}
+bool VisualTools::publishSphere(const geometry_msgs::Pose &pose, const rviz_colors color, const geometry_msgs::Vector3 scale, const std::string& ns)
+{
   if(muted_)
     return true; // this function will only work if we have loaded the publishers
 
@@ -827,7 +898,7 @@ bool VisualTools::publishSphere(const geometry_msgs::Pose &pose, const rviz_colo
 
   sphere_marker_.id++;
   sphere_marker_.color = getColor(color);
-  sphere_marker_.scale = getScale(scale, false, 0.1);
+  sphere_marker_.scale = scale;
   sphere_marker_.ns = ns;
 
   // Update the single point with new pose
@@ -1126,21 +1197,38 @@ bool VisualTools::publishSpheres(const std::vector<geometry_msgs::Point> &points
 
 bool VisualTools::publishText(const geometry_msgs::Pose &pose, const std::string &text, const rviz_colors &color, const rviz_scales scale)
 {
+  publishText(pose, text, color, getScale(scale));
+}
+
+bool VisualTools::publishText(const geometry_msgs::Pose &pose, const std::string &text, const rviz_colors &color, const geometry_msgs::Vector3 scale, bool static_id)
+{
   if(muted_)
     return true;
 
-  text_marker_.id = 0;
+  // Save the ID if this is a static ID or keep incrementing ID if not static
+  double temp_id = text_marker_.id;
+  if (static_id)
+  {
+    text_marker_.id = 0;
+  }
+  else
+  {
+    text_marker_.id++;
+  }
 
   text_marker_.header.stamp = ros::Time::now();
   text_marker_.text = text;
   text_marker_.pose = pose;
   text_marker_.color = getColor( color );
-  text_marker_.scale = getScale(scale); // only z is required (size of an "A")
-  //text_marker_.scale.z = 0.01;
+  text_marker_.scale = scale;
 
   loadMarkerPub(); // always check this before publishing
   pub_rviz_marker_.publish( text_marker_ );
   ros::spinOnce();
+
+  // Restore the ID count if needed
+  if (static_id)
+    text_marker_.id = temp_id;
 
   return true;
 }
@@ -1341,7 +1429,7 @@ bool VisualTools::publishIKSolutions(const std::vector<trajectory_msgs::JointTra
   return publishTrajectoryPath(trajectory_msg, true);
 }
 
-bool VisualTools::removeAllCollisionObjects()
+bool VisualTools::publishRemoveAllCollisionObjects()
 {
   // Publish an empty REMOVE message so as to remove all of them
 
@@ -1364,21 +1452,14 @@ bool VisualTools::removeAllCollisionObjects()
   return true;
 }
 
-bool VisualTools::removeAllCollisionObjects(planning_scene_monitor::PlanningSceneMonitorPtr& planning_scene_monitor)
+bool VisualTools::removeAllCollisionObjectsPS()
 {
   // Clean up old collision objects
   moveit_msgs::CollisionObject remove_object;
   remove_object.header.frame_id = base_frame_;
   remove_object.operation = moveit_msgs::CollisionObject::REMOVE;
 
-  // Apply removal command directly to avoid a ROS msg call
-  {
-    planning_scene_monitor::LockedPlanningSceneRW scene(planning_scene_monitor);
-    scene->processCollisionObjectMsg(remove_object);
-  }
-
-  // Trigger an update
-  planning_scene_monitor->triggerSceneUpdateEvent(planning_scene_monitor::PlanningSceneMonitor::UPDATE_SCENE);
+  processCollisionObjectMsg(remove_object);
 }
 
 bool VisualTools::cleanupCO(std::string name)
@@ -1430,6 +1511,45 @@ bool VisualTools::attachCO(const std::string& name, const std::string& ee_parent
   loadAttachedPub(); // always call this before publishing
   pub_attach_collision_obj_.publish(aco);
   ros::spinOnce();
+  return true;
+}
+
+bool VisualTools::publishCollisionFloor(double z, std::string plane_name)
+{
+  moveit_msgs::CollisionObject collision_obj;
+  collision_obj.header.stamp = ros::Time::now();
+  collision_obj.header.frame_id = base_frame_;
+  collision_obj.id = plane_name;
+  collision_obj.operation = moveit_msgs::CollisionObject::ADD;  
+  collision_obj.planes.resize(1);
+  // Representation of a plane, using the plane equation ax + by + cz + d = 0
+  collision_obj.planes[0].coef[0] = 0; // a
+  collision_obj.planes[0].coef[1] = 0; // b
+  collision_obj.planes[0].coef[2] = 0; // c
+  collision_obj.planes[0].coef[3] = 0; // d
+  // Pose
+  geometry_msgs::Pose floor_pose;
+
+  // Position
+  floor_pose.position.x = 0;
+  floor_pose.position.y = 0;
+  floor_pose.position.z = z;
+
+  // Orientation
+  Eigen::Quaterniond quat(Eigen::AngleAxis<double>(0.0, Eigen::Vector3d::UnitZ()));
+  floor_pose.orientation.x = quat.x();
+  floor_pose.orientation.y = quat.y();
+  floor_pose.orientation.z = quat.z();
+  floor_pose.orientation.w = quat.w();
+
+  collision_obj.plane_poses.resize(1);
+  collision_obj.plane_poses[0] = floor_pose;
+
+  ROS_INFO_STREAM_NAMED("pick_place","CollisionObject: \n " << collision_obj);
+
+  processCollisionObjectMsg(collision_obj);
+
+  ROS_DEBUG_STREAM_NAMED("visual_tools","Published collision object " << plane_name);
   return true;
 }
 
@@ -1681,10 +1801,11 @@ bool VisualTools::publishCollisionTable(double x, double y, double angle, double
   return true;
 }
 
-bool VisualTools::publishCollisionSceneFromFile(const std::string &path, planning_scene_monitor::PlanningSceneMonitorPtr& planning_scene_monitor)
+bool VisualTools::loadCollisionSceneFromFile(const std::string &path)
 {
   {
-    planning_scene_monitor::LockedPlanningSceneRW scene(planning_scene_monitor);
+    // Load directly to the planning scene
+    planning_scene_monitor::LockedPlanningSceneRW scene(getPlanningSceneMonitor());
     if (scene)
     {
 
@@ -1701,7 +1822,7 @@ bool VisualTools::publishCollisionSceneFromFile(const std::string &path, plannin
     else
       ROS_WARN_STREAM_NAMED("temp","Unable to get locked planning scene RW");
   }
-  planning_scene_monitor->triggerSceneUpdateEvent(planning_scene_monitor::PlanningSceneMonitor::UPDATE_SCENE);
+  getPlanningSceneMonitor()->triggerSceneUpdateEvent(planning_scene_monitor::PlanningSceneMonitor::UPDATE_SCENE);
 }
 
 bool VisualTools::publishTrajectoryPoint(const trajectory_msgs::JointTrajectoryPoint& trajectory_pt,
@@ -1877,6 +1998,13 @@ Eigen::Affine3d VisualTools::convertPoint32ToPose(const geometry_msgs::Point32 &
   pose_eigen.translation().y() = point.y;
   pose_eigen.translation().z() = point.z;
   return pose_eigen;
+}
+
+geometry_msgs::Pose VisualTools::convertPointToPose(const geometry_msgs::Point &point)
+{
+  geometry_msgs::Pose pose_msg;
+  pose_msg.position = point;
+  return pose_msg;
 }
 
 geometry_msgs::Point convertPoseToPoint(const Eigen::Affine3d &pose)
