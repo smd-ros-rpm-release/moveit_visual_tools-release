@@ -1,6 +1,8 @@
 MoveIt! Visual Tools
 ==========================
 
+**NOTE: in ROS Indigo API has changed significantly, see 'Upgrade Notes' below**
+
 Helper functions for displaying and debugging MoveIt! data in Rviz via published markers, trajectories, and MoveIt! collision objects. It is sometimes hard to understand everything that is going on internally with MoveIt!, but using these quick convenience functions allows one to easily visualize their code.
 
 This package includes:
@@ -12,18 +14,13 @@ This package includes:
 
 Developed by [Dave Coleman](http://dav.ee) at the Correll Robotics Lab, University of Colorado Boulder with outside contributors.
 
-<img align="right" src="https://raw.github.com/davetcoleman/moveit_visual_tools/hydro-devel/resources/demo.png" />
-
-### Build Status
-
-[![Build Status](https://travis-ci.org/davetcoleman/moveit_visual_tools.png?branch=hydro-devel)](https://travis-ci.org/davetcoleman/moveit_visual_tools)
+<img align="right" src="https://raw.github.com/davetcoleman/moveit_visual_tools/indigo-devel/resources/demo.png" />
 
 ## Install
 
 ### Ubuntu Debian
 
 ```
-sudo apt-get install ros-hydro-moveit-visual-tools
 sudo apt-get install ros-indigo-moveit-visual-tools
 ```
 
@@ -32,6 +29,46 @@ sudo apt-get install ros-indigo-moveit-visual-tools
 Clone this repository into a catkin workspace, then use the rosdep install tool to automatically download its dependencies. Depending on your current version of ROS, use:
 ```
 rosdep install --from-paths src --ignore-src --rosdistro indigo
+```
+
+## Quick Start
+
+To see random shapes generated in Rviz:
+
+    roslaunch moveit_visual_tools visual_tools_test.launch
+
+You should see something like:
+
+<img align="right" src="https://raw.github.com/davetcoleman/moveit_visual_tools/indigo-devel/resources/screenshot.png" />
+	
+## Code API
+
+See [VisualTools Class Reference](http://docs.ros.org/indigo/api/moveit_visual_tools/html/classmoveit__visual__tools_1_1VisualTools.html)
+
+## Upgrade Notes
+
+We recently did a major refactor of moveit_visual_tools that caused some API breaking changes. If you do not want to bother, you can still build the old version from source using the branch ``indigo-devel-old-api``.
+
+To upgrade, do the following (or use the upgrade script further down):
+
+Orignal API                                    | New API
+---------------------------------------------- | ------------------------------------------------------
+#include \<moveit_visual_tools/visual_tools.h\>  | #include \<moveit_visual_tools/moveit_visual_tools.h\>
+moveit_visual_tools::VisualTools               | moveit_visual_tools::MoveItVisualTools
+moveit_visual_tools::VisualToolsPtr            | moveit_visual_tools::MoveItVisualToolsPtr
+moveit_visual_tools::rviz_colors               | rviz_visual_tools::colors
+moveit_visual_tools::rviz_scales               | rviz_visual_tools::scales
+
+### Auto Upgrade Script
+
+Run each line in order in the ``/src`` of your catkin workspace:
+
+```
+findreplace() { grep -lr -e "$1" * | xargs sed -i "s/$1/$2/g" ;}
+findreplace '<moveit_visual_tools\/visual_tools.h>' '<moveit_visual_tools\/moveit_visual_tools.h>'
+findreplace moveit_visual_tools::VisualTools moveit_visual_tools::MoveItVisualTools
+findreplace 'moveit_visual_tools::' 'rviz_visual_tools::'
+findreplace 'rviz_visual_tools::MoveItVisualTools' 'moveit_visual_tools::MoveItVisualTools'
 ```
 
 ## Usage
@@ -107,11 +144,9 @@ And more...
 
 ### Collision Object Functions
 
-To
-
 Helpers for adding and removing objects from the MoveIt! planning scene. CO stands for Collision Object and ACO stands for Active Collision Object.
 
-DEVELOPER TODO: make it so that to use these functions, you must first instanciate a planning scene monitor outside of moveit_visual_tools. Remove publish collision message
+*DEVELOPER TODO: make it so that to use these functions, you must first instanciate a planning scene monitor outside of moveit_visual_tools. Remove publish collision message*
 
  - cleanupCO
  - cleanupACO
