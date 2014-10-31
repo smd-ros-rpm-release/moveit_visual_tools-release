@@ -43,8 +43,8 @@
 #ifndef MOVEIT_VISUAL_TOOLS__MOVEIT_VISUAL_TOOLS_H_
 #define MOVEIT_VISUAL_TOOLS__MOVEIT_VISUAL_TOOLS_H_
 
-// Rviz
-#include <rviz_visual_tools/visual_tools.h>
+// Rviz Visualization Tool
+#include <rviz_visual_tools/rviz_visual_tools.h>
 
 // MoveIt
 #include <moveit/planning_scene_monitor/planning_scene_monitor.h>
@@ -67,7 +67,7 @@ static const std::string PLANNING_SCENE_TOPIC = "/move_group/monitored_planning_
 static const std::string DISPLAY_PLANNED_PATH_TOPIC = "/move_group/display_planned_path";
 static const std::string DISPLAY_ROBOT_STATE_TOPIC = "/move_group/robot_state";
 
-class MoveItVisualTools : public rviz_visual_tools::VisualTools
+class MoveItVisualTools : public rviz_visual_tools::RvizVisualTools
 {
 protected:
 
@@ -130,6 +130,13 @@ public:
   bool loadPlanningSceneMonitor();
 
   /**
+   * \brief Publish any collision object to the planning scene
+   * \param collision object message
+   * \return true on success
+   */
+  bool publishCollisionObjectMsg(moveit_msgs::CollisionObject msg);
+
+  /**
    * \brief Skip a ROS message call by sending directly to planning scene monitor
    * \param collision object message
    * \return true on success
@@ -147,6 +154,12 @@ public:
    * \return true if successful in loading
    */
   bool loadRobotMarkers();
+
+  /**
+   * \brief Allow robot state to be altered.
+   * \return shared pointer to robot state
+   */
+  robot_state::RobotStatePtr& getSharedRobotState();
 
   /**
    * \brief Call this once at begining to load the robot marker
@@ -185,9 +198,10 @@ public:
    * \brief Show grasps generated from moveit_simple_grasps or other MoveIt Grasp message sources
    * \param possible_grasps - a set of grasp positions to visualize
    * \param ee_parent_link - end effector's attachment link
+   * \param animate_speed - how fast the gripper approach is animated, optional
    */
   bool publishGrasps(const std::vector<moveit_msgs::Grasp>& possible_grasps,
-                     const std::string &ee_parent_link);
+                     const std::string &ee_parent_link, double animate_speed = 0.1);
 
   /**
    * \brief Display an animated vector of grasps including its approach movement in Rviz
