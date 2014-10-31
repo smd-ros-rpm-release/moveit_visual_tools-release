@@ -58,7 +58,7 @@ namespace moveit_visual_tools
 MoveItVisualTools::MoveItVisualTools(const std::string& base_frame,
                                      const std::string& marker_topic,
                                      planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor)
-  :  VisualTools::VisualTools(base_frame, marker_topic),
+  :  RvizVisualTools::RvizVisualTools(base_frame, marker_topic),
      planning_scene_monitor_(planning_scene_monitor)
 {
 
@@ -67,7 +67,7 @@ MoveItVisualTools::MoveItVisualTools(const std::string& base_frame,
 MoveItVisualTools::MoveItVisualTools(const std::string& base_frame,
                                      const std::string& marker_topic,
                                      robot_model::RobotModelConstPtr robot_model)
-  :  VisualTools::VisualTools(base_frame, marker_topic),
+  :  RvizVisualTools::RvizVisualTools(base_frame, marker_topic),
      robot_model_(robot_model)
 {
 
@@ -125,6 +125,13 @@ bool MoveItVisualTools::loadPlanningSceneMonitor()
   return true;
 }
 
+bool MoveItVisualTools::publishCollisionObjectMsg(moveit_msgs::CollisionObject msg)
+{
+  loadCollisionPub(); // always call this before publishing
+  pub_collision_obj_.publish(msg);
+  ros::spinOnce();
+}
+
 bool MoveItVisualTools::processCollisionObjectMsg(moveit_msgs::CollisionObject msg)
 {
   // Apply removal command directly to avoid a ROS msg call
@@ -148,7 +155,7 @@ bool MoveItVisualTools::loadSharedRobotState()
     if (!robot_model_)
     {
       // Fall back on using planning scene monitor.
-      // Deprecated?
+      // \todo Deprecated?
       ROS_WARN_STREAM_NAMED("temp","Falling back to using planning scene monitor for loading a robot state");
       planning_scene_monitor::PlanningSceneMonitorPtr psm = getPlanningSceneMonitor();
       robot_model_ = psm->getRobotModel();
@@ -156,7 +163,7 @@ bool MoveItVisualTools::loadSharedRobotState()
     shared_robot_state_.reset(new robot_state::RobotState(robot_model_));
   }
 
-  return true;
+  return shared_robot_state_;
 }
 
 bool MoveItVisualTools::loadRobotMarkers()
@@ -191,18 +198,30 @@ bool MoveItVisualTools::loadRobotMarkers()
     if( robot_marker_array.markers[i].type == visualization_msgs::Marker::MESH_RESOURCE )
       robot_marker_array.markers[i].mesh_use_embedded_materials = true;
 
-    loadMarkerPub(); // always check this before publishing
-    pub_rviz_marker_.publish( robot_marker_array.markers[i] );
-    ros::spinOnce();
+    // Helper for publishing rviz markers
+    publishMarker( robot_marker_array.markers[i] );
   }
 
   return true;
 }
 
+robot_state::RobotStatePtr& MoveItVisualTools::getSharedRobotState()
+{
+  // Always load the robot state before using
+  loadSharedRobotState();
+  return shared_robot_state_;
+}
+
+// \todo handle different types of end effectors better
 bool MoveItVisualTools::loadEEMarker(const std::string& ee_group_name, const std::string& planning_group)
 {
   // Always load the robot state before using
   loadSharedRobotState();
+  shared_robot_state_->setToDefaultValues(); // make sure the ee joint values are reasonable
+
+  // Clear old EE markers
+  marker_poses_.clear();
+  ee_marker_array_.markers.clear();
 
   // -----------------------------------------------------------------------------------------------
   // Get end effector group
@@ -279,9 +298,8 @@ void MoveItVisualTools::loadCollisionPub()
   pub_collision_obj_ = nh_.advertise<moveit_msgs::CollisionObject>(COLLISION_TOPIC, 10);
   ROS_DEBUG_STREAM_NAMED("visual_tools","Publishing collision objects on topic " << pub_collision_obj_.getTopic());
 
-  ros::spinOnce();
-  ros::Duration(0.2).sleep();
-  ros::spinOnce();
+  // Wait for topic to be ready
+  waitForSubscriber(pub_collision_obj_);
 }
 
 void MoveItVisualTools::loadAttachedPub()
@@ -293,9 +311,8 @@ void MoveItVisualTools::loadAttachedPub()
   pub_attach_collision_obj_ = nh_.advertise<moveit_msgs::AttachedCollisionObject>(ATTACHED_COLLISION_TOPIC, 10);
   ROS_DEBUG_STREAM_NAMED("visual_tools","Publishing attached collision objects on topic " << pub_attach_collision_obj_.getTopic());
 
-  ros::spinOnce();
-  ros::Duration(0.2).sleep();
-  ros::spinOnce();
+  // Wait for topic to be ready
+  waitForSubscriber(pub_attach_collision_obj_);
 }
 
 void MoveItVisualTools::loadPlanningPub()
@@ -307,9 +324,8 @@ void MoveItVisualTools::loadPlanningPub()
   pub_planning_scene_diff_ = nh_.advertise<moveit_msgs::PlanningScene>(PLANNING_SCENE_TOPIC, 1);
   ROS_DEBUG_STREAM_NAMED("visual_tools","Publishing planning scene on topic " << pub_planning_scene_diff_.getTopic());
 
-  ros::spinOnce();
-  ros::Duration(0.2).sleep();
-  ros::spinOnce();
+  // Wait for topic to be ready
+  waitForSubscriber(pub_planning_scene_diff_);
 }
 
 void MoveItVisualTools::loadTrajectoryPub()
@@ -321,9 +337,8 @@ void MoveItVisualTools::loadTrajectoryPub()
   pub_display_path_ = nh_.advertise<moveit_msgs::DisplayTrajectory>(DISPLAY_PLANNED_PATH_TOPIC, 10, false);
   ROS_DEBUG_STREAM_NAMED("visual_tools","Publishing MoveIt trajectory on topic " << pub_display_path_.getTopic());
 
-  ros::spinOnce();
-  ros::Duration(0.2).sleep();
-  ros::spinOnce();
+  // Wait for topic to be ready
+  waitForSubscriber(pub_display_path_);  
 }
 
 void MoveItVisualTools::loadRobotStatePub(const std::string &marker_topic)
@@ -335,9 +350,8 @@ void MoveItVisualTools::loadRobotStatePub(const std::string &marker_topic)
   pub_robot_state_ = nh_.advertise<moveit_msgs::DisplayRobotState>(marker_topic, 1 );
   ROS_DEBUG_STREAM_NAMED("visual_tools","Publishing MoveIt robot state on topic " << pub_robot_state_.getTopic());
 
-  ros::spinOnce();
-  ros::Duration(0.2).sleep();
-  ros::spinOnce();
+  // Wait for topic to be ready
+  waitForSubscriber(pub_robot_state_);
 }
 
 planning_scene_monitor::PlanningSceneMonitorPtr MoveItVisualTools::getPlanningSceneMonitor()
@@ -351,7 +365,8 @@ planning_scene_monitor::PlanningSceneMonitorPtr MoveItVisualTools::getPlanningSc
   return planning_scene_monitor_;
 }
 
-bool MoveItVisualTools::publishEEMarkers(const geometry_msgs::Pose &pose, const rviz_visual_tools::colors &color, const std::string &ns)
+bool MoveItVisualTools::publishEEMarkers(const geometry_msgs::Pose &pose, const rviz_visual_tools::colors &color, 
+                                         const std::string &ns)
 {
   if(muted_)
     return true;
@@ -424,18 +439,17 @@ bool MoveItVisualTools::publishEEMarkers(const geometry_msgs::Pose &pose, const 
     tf::poseTFToMsg(tf_root_to_mesh_new, ee_marker_array_.markers[i].pose);
     // -----------------------------------------------------------------------------------------------
 
-    //ROS_INFO_STREAM("Marker " << i << ":\n" << ee_marker_array_.markers[i]);
+    //ROS_INFO_STREAM("Marker " << i << " ------------- \n" << ee_marker_array_.markers[i]);
 
-    loadMarkerPub(); // always check this before publishing
-    pub_rviz_marker_.publish( ee_marker_array_.markers[i] );
-    ros::spinOnce();
+    // Helper for publishing rviz markers
+    publishMarker( ee_marker_array_.markers[i] );
   }
 
   return true;
 }
 
 bool MoveItVisualTools::publishGrasps(const std::vector<moveit_msgs::Grasp>& possible_grasps,
-                                const std::string &ee_parent_link)
+                                      const std::string &ee_parent_link, double animate_speed)
 {
   if(muted_)
   {
@@ -452,18 +466,18 @@ bool MoveItVisualTools::publishGrasps(const std::vector<moveit_msgs::Grasp>& pos
     if( !ros::ok() )  // Check that ROS is still ok and that user isn't trying to quit
       break;
 
-    ROS_DEBUG_STREAM_NAMED("grasp","Visualizing grasp pose " << i);
+    //ROS_DEBUG_STREAM_NAMED("grasp","Visualizing grasp pose " << i);
 
     publishEEMarkers(possible_grasps[i].grasp_pose.pose);
 
-    ros::Duration(0.1).sleep();
+    ros::Duration(animate_speed).sleep();
   }
 
   return true;
 }
 
 bool MoveItVisualTools::publishAnimatedGrasps(const std::vector<moveit_msgs::Grasp>& possible_grasps,
-                                        const std::string &ee_parent_link, double animate_speed)
+                                              const std::string &ee_parent_link, double animate_speed)
 {
   if(muted_)
   {
@@ -488,7 +502,8 @@ bool MoveItVisualTools::publishAnimatedGrasps(const std::vector<moveit_msgs::Gra
   return true;
 }
 
-bool MoveItVisualTools::publishAnimatedGrasp(const moveit_msgs::Grasp &grasp, const std::string &ee_parent_link, double animate_speed)
+bool MoveItVisualTools::publishAnimatedGrasp(const moveit_msgs::Grasp &grasp, const std::string &ee_parent_link, 
+                                             double animate_speed)
 {
   if(muted_)
     return true;
@@ -734,11 +749,11 @@ bool MoveItVisualTools::publishCollisionFloor(double z, std::string plane_name)
   collision_obj.plane_poses.resize(1);
   collision_obj.plane_poses[0] = floor_pose;
 
-  ROS_INFO_STREAM_NAMED("pick_place","CollisionObject: \n " << collision_obj);
+  //ROS_INFO_STREAM_NAMED("visual_tools","CollisionObject: \n " << collision_obj);
 
   processCollisionObjectMsg(collision_obj);
 
-  ROS_DEBUG_STREAM_NAMED("visual_tools","Published collision object " << plane_name);
+  //ROS_DEBUG_STREAM_NAMED("visual_tools","Published collision object " << plane_name);
   return true;
 }
 
@@ -758,7 +773,7 @@ bool MoveItVisualTools::publishCollisionBlock(geometry_msgs::Pose block_pose, st
   collision_obj.primitive_poses.resize(1);
   collision_obj.primitive_poses[0] = block_pose;
 
-  //ROS_INFO_STREAM_NAMED("pick_place","CollisionObject: \n " << collision_obj);
+  //ROS_INFO_STREAM_NAMED("visual_tools","CollisionObject: \n " << collision_obj);
 
   loadCollisionPub(); // always call this before publishing
   pub_collision_obj_.publish(collision_obj);
@@ -813,7 +828,7 @@ bool MoveItVisualTools::publishCollisionCylinder(geometry_msgs::Pose object_pose
   collision_obj.primitive_poses.resize(1);
   collision_obj.primitive_poses[0] = object_pose;
 
-  //ROS_INFO_STREAM_NAMED("pick_place","CollisionObject: \n " << collision_obj);
+  //ROS_INFO_STREAM_NAMED("visual_tools","CollisionObject: \n " << collision_obj);
 
   loadCollisionPub(); // always call this before publishing
   pub_collision_obj_.publish(collision_obj);
@@ -1119,7 +1134,7 @@ bool MoveItVisualTools::publishRobotState(const robot_state::RobotState &robot_s
 {
   robot_state::robotStateToRobotStateMsg(robot_state, display_robot_msg_.state);
 
-  loadRobotStatePub(); // always call this before publishing
+  loadRobotStatePub();
   pub_robot_state_.publish( display_robot_msg_ );
   ros::spinOnce();
 
